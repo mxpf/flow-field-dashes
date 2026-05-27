@@ -150,7 +150,10 @@ function applyConfig(config) {
   if (config.controls && typeof config.controls === "object") {
     CONFIG_KEYS.forEach((key) => {
       if (config.controls[key] !== undefined) {
-        controls[key].value = config.controls[key];
+        controls[key].value =
+          key === "pattern" && config.controls[key] === "arrows"
+            ? "wake"
+            : config.controls[key];
       }
     });
   }
@@ -276,10 +279,10 @@ function vortexAngle(nx, ny, t) {
   return orbit + inwardPull * value("fieldPull") + wobble;
 }
 
-function arrowTipX(t) {
-  const travel = SIZE + 220;
+function boatXPosition(t, wakeLength) {
+  const travel = SIZE + wakeLength + 360;
 
-  return (t * 155 + state.seed * 41) % travel;
+  return ((t * 155 + state.seed * 41) % travel) - 180;
 }
 
 function fieldAngle(x, y, t) {
@@ -306,14 +309,13 @@ function fieldAngle(x, y, t) {
   return flowAngle(nx, ny, t);
 }
 
-function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidth) {
-  const travel = SIZE + 220;
-  const baseTipX = arrowTipX(t);
-  const tipXs = [baseTipX - travel, baseTipX, baseTipX + travel];
+function getWakeGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidth) {
+  const wakeLength = 920 + value("waveScale") * 110;
+  const travel = SIZE + wakeLength + 360;
+  const baseBoatX = boatXPosition(t, wakeLength);
+  const boatXs = [baseBoatX - travel, baseBoatX, baseBoatX + travel];
   const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
-  const armLength = 900 + value("waveScale") * 80;
-  const armSpread = 500 + value("fieldPull") * 86;
-  const ridgeWidth = gap * (1.12 + value("fieldPull") * 0.12);
+  const maxWakeWidth = 500 + value("fieldPull") * 95;
   const restAngle = Math.PI / 2;
   const segments = [];
 
@@ -324,18 +326,15 @@ function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWid
       let influence = 0;
       let targetAngle = restAngle;
 
-      for (const tipX of tipXs) {
-        const behind = tipX - x;
-        const progress = clamp(behind / armLength, 0, 1);
-        const frontBlend = smoothstep(-90, 150, behind);
-        const tailBlend = 1 - smoothstep(armLength * 0.82, armLength, behind);
-        const spread = armSpread * Math.pow(progress, 0.82);
-        const upperArmY = centerY - spread;
-        const lowerArmY = centerY + spread;
-        const upperBlend = 1 - smoothstep(0, ridgeWidth, Math.abs(y - upperArmY));
-        const lowerBlend = 1 - smoothstep(0, ridgeWidth, Math.abs(y - lowerArmY));
-        const ridgeBlend = Math.max(upperBlend, lowerBlend);
-        const candidateInfluence = frontBlend * tailBlend * ridgeBlend;
+      for (const boatX of boatXs) {
+        const behind = boatX - x;
+        const progress = clamp(behind / wakeLength, 0, 1);
+        const frontBlend = smoothstep(-80, 180, behind);
+        const tailBlend = 1 - smoothstep(wakeLength * 0.78, wakeLength, behind);
+        const wakeWidth = 58 + maxWakeWidth * Math.pow(progress, 0.72);
+        const yFromCenter = y - centerY;
+        const wakeBlend = 1 - smoothstep(wakeWidth, wakeWidth + 220, Math.abs(yFromCenter));
+        const candidateInfluence = frontBlend * tailBlend * wakeBlend;
 
         if (candidateInfluence <= 0) {
           continue;
@@ -343,7 +342,8 @@ function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWid
 
         if (candidateInfluence > influence) {
           const dx = Math.max(95, behind);
-          const dy = centerY - y;
+          const flowCurl = Math.sin(progress * Math.PI) * yFromCenter * 0.18;
+          const dy = centerY - y + flowCurl;
 
           influence = candidateInfluence;
           targetAngle = Math.atan2(dy, dx);
@@ -387,8 +387,8 @@ function getDashGeometry(t) {
   const mode = controls.pattern.value;
   const segments = [];
 
-  if (mode === "arrows") {
-    return getArrowGeometry(t, columns, rows, margin, gap, dashLength, lineWidth);
+  if (mode === "wake" || mode === "arrows") {
+    return getWakeGeometry(t, columns, rows, margin, gap, dashLength, lineWidth);
   }
 
   for (let row = 0; row < rows; row += 1) {
