@@ -270,10 +270,33 @@ function vortexAngle(nx, ny, t) {
   return orbit + inwardPull * value("fieldPull") + wobble;
 }
 
+function arrowTipX(t) {
+  const cycle = (t * 0.16 + state.seed * 0.013) % 1.28;
+  return cycle - 0.14;
+}
+
+function arrowAngle(x, y, t) {
+  const px = x / SIZE;
+  const py = y / SIZE;
+  const tipX = arrowTipX(t);
+  const pull = value("fieldPull");
+  const spread = 0.58 + value("waveScale") * 0.08;
+  const dx = Math.max(0.065, (tipX - px) * (1.24 + pull * 0.32));
+  const dy = (0.5 - py) * spread;
+  const chevron = Math.atan2(dy, dx);
+  const flutter = Math.sin(px * 11 - t * 2.6 + Math.abs(py - 0.5) * 7) * 0.08;
+
+  return chevron + flutter;
+}
+
 function fieldAngle(x, y, t) {
   const nx = (x / SIZE - 0.5) * value("waveScale");
   const ny = (y / SIZE - 0.5) * value("waveScale");
   const mode = controls.pattern.value;
+
+  if (mode === "arrows") {
+    return arrowAngle(x, y, t);
+  }
 
   if (mode === "radial") {
     return radialAngle(nx, ny, t);
@@ -294,6 +317,24 @@ function fieldAngle(x, y, t) {
   return flowAngle(nx, ny, t);
 }
 
+function arrowSegmentStyle(x, y, t, baseLength, baseLineWidth) {
+  const px = x / SIZE;
+  const py = y / SIZE;
+  const tipX = arrowTipX(t);
+  const distToTip = Math.hypot((px - tipX) * 1.45, (py - 0.5) * 1.9);
+  const behindDistance = tipX - px;
+  const headGlow = clamp(1 - distToTip / 0.42, 0, 1);
+  const trailingWake = behindDistance >= 0 ? clamp(1 - behindDistance / 0.86, 0, 1) : 0;
+  const centerBand = clamp(1 - Math.abs(py - 0.5) / 0.48, 0, 1);
+  const emphasis = clamp(headGlow * 0.82 + trailingWake * centerBand * 0.38, 0, 1);
+
+  return {
+    length: baseLength * (0.72 + emphasis * 0.48),
+    lineWidth: baseLineWidth * (0.48 + emphasis * 0.9),
+    opacity: 0.36 + emphasis * 0.64,
+  };
+}
+
 function drawBackground() {
   const gradient = ctx.createLinearGradient(0, 0, SIZE, SIZE);
   gradient.addColorStop(0, "#e5e8e8");
@@ -309,6 +350,7 @@ function getDashGeometry(t) {
   const gap = (SIZE - margin * 2) / (columns - 1);
   const dashLength = gap * 0.82;
   const lineWidth = Math.max(5, gap * 0.12);
+  const mode = controls.pattern.value;
   const segments = [];
 
   for (let row = 0; row < rows; row += 1) {
@@ -317,11 +359,17 @@ function getDashGeometry(t) {
       const y = margin + row * gap;
       const bend = Math.sin(row * 0.26 + t * 0.38) * 8;
       const angle = fieldAngle(x + bend, y, t);
-      const half = dashLength / 2;
+      const style =
+        mode === "arrows"
+          ? arrowSegmentStyle(x, y, t, dashLength, lineWidth)
+          : { length: dashLength, lineWidth, opacity: 1 };
+      const half = style.length / 2;
       const dx = Math.cos(angle) * half;
       const dy = Math.sin(angle) * half;
 
       segments.push({
+        lineWidth: style.lineWidth,
+        opacity: style.opacity,
         x1: x - dx,
         y1: y - dy,
         x2: x + dx,
@@ -341,11 +389,16 @@ function drawDashes(t) {
   ctx.lineCap = "butt";
 
   for (const segment of segments) {
+    ctx.globalAlpha = segment.opacity;
+    ctx.lineWidth = segment.lineWidth;
     ctx.beginPath();
     ctx.moveTo(segment.x1, segment.y1);
     ctx.lineTo(segment.x2, segment.y2);
     ctx.stroke();
   }
+
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = lineWidth;
 }
 
 function render(timestamp = 0) {
@@ -380,10 +433,15 @@ function formatNumber(number) {
 function exportSvg() {
   const { lineWidth, segments } = getDashGeometry(easedTime(state.time));
   const lines = segments
-    .map(
-      (segment) =>
-        `<line x1="${formatNumber(segment.x1)}" y1="${formatNumber(segment.y1)}" x2="${formatNumber(segment.x2)}" y2="${formatNumber(segment.y2)}" />`,
-    )
+    .map((segment) => {
+      const widthAttr =
+        segment.lineWidth === lineWidth
+          ? ""
+          : ` stroke-width="${formatNumber(segment.lineWidth)}"`;
+      const opacityAttr = segment.opacity === 1 ? "" : ` stroke-opacity="${formatNumber(segment.opacity)}"`;
+
+      return `<line x1="${formatNumber(segment.x1)}" y1="${formatNumber(segment.y1)}" x2="${formatNumber(segment.x2)}" y2="${formatNumber(segment.y2)}"${widthAttr}${opacityAttr} />`;
+    })
     .join("\n    ");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   <defs>
