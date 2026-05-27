@@ -47,6 +47,12 @@ function clamp(number, min, max) {
   return Math.min(max, Math.max(min, number));
 }
 
+function smoothstep(edge0, edge1, number) {
+  const x = clamp((number - edge0) / (edge1 - edge0), 0, 1);
+
+  return x * x * (3 - 2 * x);
+}
+
 function parseControlNumber(rawValue) {
   return String(rawValue).trim() === "" ? NaN : Number(rawValue);
 }
@@ -271,10 +277,9 @@ function vortexAngle(nx, ny, t) {
 }
 
 function arrowTipX(t) {
-  const travel = SIZE + 360;
-  const offset = ((t * 155 + state.seed * 41) % travel) - 180;
+  const travel = SIZE + 220;
 
-  return offset;
+  return (t * 155 + state.seed * 41) % travel;
 }
 
 function fieldAngle(x, y, t) {
@@ -302,45 +307,53 @@ function fieldAngle(x, y, t) {
 }
 
 function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidth) {
-  const tipX = arrowTipX(t);
+  const travel = SIZE + 220;
+  const baseTipX = arrowTipX(t);
+  const tipXs = [baseTipX - travel, baseTipX, baseTipX + travel];
   const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
-  const wakeLength = 780 + value("waveScale") * 70;
-  const halfHeight = 520;
+  const wakeLength = 880 + value("waveScale") * 70;
+  const halfHeight = 520 + value("fieldPull") * 55;
+  const restAngle = Math.PI / 2;
   const segments = [];
 
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < columns; col += 1) {
       const x = margin + col * gap;
       const y = margin + row * gap;
-      const behind = tipX - x;
-      const verticalDistance = Math.abs(y - centerY);
-      const wake = clamp(1 - behind / wakeLength, 0, 1);
-      const insideWake = behind >= -80 && behind <= wakeLength;
-      const insideArrow = insideWake && verticalDistance < halfHeight * (0.22 + wake * 0.78);
-      const shell = Math.abs(verticalDistance - halfHeight * wake) / halfHeight;
-      const chevronStrength = insideArrow ? clamp(1 - shell * 1.8, 0.22, 1) : 0;
-      const verticalGate = x > tipX + 30 ? clamp((x - tipX) / 280, 0, 1) : 0;
-      const dx = Math.max(90, tipX - x);
-      const dy = centerY - y;
-      const chevronAngle = Math.atan2(dy, dx);
-      const restingAngle = Math.PI / 2;
-      const angle = mixAngles(restingAngle, chevronAngle, chevronStrength);
-      const head = clamp(1 - Math.hypot((x - tipX) / 360, (y - centerY) / 360), 0, 1);
-      const emphasis = clamp(chevronStrength * 0.64 + head * 0.58, 0, 1);
-      const length = dashLength * (0.56 + emphasis * 0.68 + verticalGate * 0.12);
-      const lineWidth = baseLineWidth * (0.42 + emphasis * 1.08);
-      const opacity = 0.22 + emphasis * 0.78;
-      const half = length / 2;
-      const xDrift = Math.sin(row * 0.8 + t * 1.8) * 3;
+      let influence = 0;
+      let targetAngle = restAngle;
+
+      for (const tipX of tipXs) {
+        const behind = tipX - x;
+        const normalizedBehind = clamp(behind / wakeLength, 0, 1);
+        const arrowHalfHeight = 70 + normalizedBehind * halfHeight;
+        const verticalDistance = Math.abs(y - centerY);
+        const frontBlend = smoothstep(-120, 120, behind);
+        const tailBlend = 1 - smoothstep(wakeLength * 0.74, wakeLength, behind);
+        const shapeBlend =
+          1 - smoothstep(arrowHalfHeight, arrowHalfHeight + 170, verticalDistance);
+        const candidateInfluence = frontBlend * tailBlend * shapeBlend;
+
+        if (candidateInfluence > influence) {
+          const dx = Math.max(120, behind);
+          const dy = centerY - y;
+
+          influence = candidateInfluence;
+          targetAngle = Math.atan2(dy, dx);
+        }
+      }
+
+      const angle = mixAngles(restAngle, targetAngle, influence);
+      const half = dashLength / 2;
       const dxLine = Math.cos(angle) * half;
       const dyLine = Math.sin(angle) * half;
 
       segments.push({
-        lineWidth,
-        opacity,
-        x1: x + xDrift - dxLine,
+        lineWidth: baseLineWidth,
+        opacity: 1,
+        x1: x - dxLine,
         y1: y - dyLine,
-        x2: x + xDrift + dxLine,
+        x2: x + dxLine,
         y2: y + dyLine,
       });
     }
