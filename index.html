@@ -64,27 +64,42 @@
 
         <label>
           <span>Speed</span>
-          <input id="speed" type="range" min="0" max="2" step="0.01" value="0.72" />
+          <div class="slider-control">
+            <input id="speed" type="range" min="0" max="2" step="0.01" value="0.72" />
+            <input id="speedNumber" type="number" min="0" max="2" step="0.01" value="0.72" aria-label="Speed value" />
+          </div>
         </label>
 
         <label>
           <span>Organic easing</span>
-          <input id="easing" type="range" min="0" max="1" step="0.01" value="0.32" />
+          <div class="slider-control">
+            <input id="easing" type="range" min="0" max="1" step="0.01" value="0.32" />
+            <input id="easingNumber" type="number" min="0" max="1" step="0.01" value="0.32" aria-label="Organic easing value" />
+          </div>
         </label>
 
         <label>
           <span>Field pull</span>
-          <input id="fieldPull" type="range" min="0.2" max="2.4" step="0.01" value="1.2" />
+          <div class="slider-control">
+            <input id="fieldPull" type="range" min="0.2" max="2.4" step="0.01" value="1.2" />
+            <input id="fieldPullNumber" type="number" min="0.2" max="2.4" step="0.01" value="1.2" aria-label="Field pull value" />
+          </div>
         </label>
 
         <label>
           <span>Wave scale</span>
-          <input id="waveScale" type="range" min="0.7" max="3.8" step="0.01" value="1.85" />
+          <div class="slider-control">
+            <input id="waveScale" type="range" min="0.7" max="3.8" step="0.01" value="1.85" />
+            <input id="waveScaleNumber" type="number" min="0.7" max="3.8" step="0.01" value="1.85" aria-label="Wave scale value" />
+          </div>
         </label>
 
         <label>
           <span>Grid density</span>
-          <input id="density" type="range" min="14" max="34" step="1" value="24" />
+          <div class="slider-control">
+            <input id="density" type="range" min="14" max="34" step="1" value="24" />
+            <input id="densityNumber" type="number" min="14" max="34" step="1" value="24" aria-label="Grid density value" />
+          </div>
         </label>
       </aside>
     </main>

@@ -112,6 +112,7 @@ input[type="range"] {
 }
 
 input[type="text"],
+input[type="number"],
 select {
   width: 100%;
   min-height: 42px;
@@ -120,6 +121,18 @@ select {
   border-radius: 6px;
   background: #f5f7f6;
   color: #141716;
+}
+
+.slider-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px;
+  gap: 10px;
+  align-items: center;
+}
+
+.slider-control input[type="number"] {
+  padding: 0 8px;
+  text-align: right;
 }
 
 .preset-box {

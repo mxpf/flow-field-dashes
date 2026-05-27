@@ -15,10 +15,15 @@ const controls = {
   presetStatus: document.querySelector("#presetStatus"),
   pattern: document.querySelector("#pattern"),
   speed: document.querySelector("#speed"),
+  speedNumber: document.querySelector("#speedNumber"),
   easing: document.querySelector("#easing"),
+  easingNumber: document.querySelector("#easingNumber"),
   fieldPull: document.querySelector("#fieldPull"),
+  fieldPullNumber: document.querySelector("#fieldPullNumber"),
   waveScale: document.querySelector("#waveScale"),
+  waveScaleNumber: document.querySelector("#waveScaleNumber"),
   density: document.querySelector("#density"),
+  densityNumber: document.querySelector("#densityNumber"),
 };
 
 const state = {
@@ -32,9 +37,75 @@ const TAU = Math.PI * 2;
 const SIZE = 1400;
 const PRESET_KEY = "flow-field-dashes-presets";
 const CONFIG_KEYS = ["pattern", "speed", "easing", "fieldPull", "waveScale", "density"];
+const NUMBERED_CONTROL_KEYS = ["speed", "easing", "fieldPull", "waveScale", "density"];
 
 function value(id) {
   return Number(controls[id].value);
+}
+
+function clamp(number, min, max) {
+  return Math.min(max, Math.max(min, number));
+}
+
+function parseControlNumber(rawValue) {
+  return String(rawValue).trim() === "" ? NaN : Number(rawValue);
+}
+
+function normalizeControlValue(key, rawValue) {
+  const slider = controls[key];
+  const number = parseControlNumber(rawValue);
+
+  if (!Number.isFinite(number)) {
+    return slider.value;
+  }
+
+  const min = Number(slider.min);
+  const max = Number(slider.max);
+  const clamped = clamp(number, min, max);
+
+  return slider.step === "1" ? String(Math.round(clamped)) : String(clamped);
+}
+
+function isInControlRange(key, rawValue) {
+  const slider = controls[key];
+  const number = parseControlNumber(rawValue);
+
+  return (
+    Number.isFinite(number) &&
+    number >= Number(slider.min) &&
+    number <= Number(slider.max)
+  );
+}
+
+function syncNumberedControl(key) {
+  controls[`${key}Number`].value = controls[key].value;
+}
+
+function syncNumberedControls() {
+  NUMBERED_CONTROL_KEYS.forEach(syncNumberedControl);
+}
+
+function setupNumberedControls() {
+  NUMBERED_CONTROL_KEYS.forEach((key) => {
+    const slider = controls[key];
+    const number = controls[`${key}Number`];
+
+    slider.addEventListener("input", () => {
+      number.value = slider.value;
+    });
+
+    number.addEventListener("input", () => {
+      if (isInControlRange(key, number.value)) {
+        slider.value = number.value;
+      }
+    });
+
+    number.addEventListener("change", () => {
+      const normalizedValue = normalizeControlValue(key, number.value);
+      slider.value = normalizedValue;
+      number.value = slider.value;
+    });
+  });
 }
 
 function readPresets() {
@@ -77,6 +148,8 @@ function applyConfig(config) {
       }
     });
   }
+
+  syncNumberedControls();
 }
 
 function encodeConfig(config) {
@@ -411,6 +484,8 @@ controls.loadPresetButton.addEventListener("click", loadPreset);
 controls.deletePresetButton.addEventListener("click", deletePreset);
 controls.sharePresetButton.addEventListener("click", sharePreset);
 
+setupNumberedControls();
+syncNumberedControls();
 renderPresetOptions();
 loadConfigFromUrl();
 render();

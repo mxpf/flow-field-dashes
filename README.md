@@ -17,4 +17,4 @@ Open `index.html` in a browser.
 - `Save`, `Load`, and `Delete` manage named presets in browser storage.
 - `Share URL` copies a link containing the current configuration.
 - `Pattern` switches between flow, radial, ring, wave, and vortex formulas.
-- `Speed`, `Organic easing`, `Field pull`, `Wave scale`, and `Grid density` tune the motion and composition.
+- `Speed`, `Organic easing`, `Field pull`, `Wave scale`, and `Grid density` tune the motion and composition with either sliders or exact numeric inputs.
