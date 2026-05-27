@@ -271,32 +271,16 @@ function vortexAngle(nx, ny, t) {
 }
 
 function arrowTipX(t) {
-  const cycle = (t * 0.16 + state.seed * 0.013) % 1.28;
-  return cycle - 0.14;
-}
+  const travel = SIZE + 360;
+  const offset = ((t * 155 + state.seed * 41) % travel) - 180;
 
-function arrowAngle(x, y, t) {
-  const px = x / SIZE;
-  const py = y / SIZE;
-  const tipX = arrowTipX(t);
-  const pull = value("fieldPull");
-  const spread = 0.58 + value("waveScale") * 0.08;
-  const dx = Math.max(0.065, (tipX - px) * (1.24 + pull * 0.32));
-  const dy = (0.5 - py) * spread;
-  const chevron = Math.atan2(dy, dx);
-  const flutter = Math.sin(px * 11 - t * 2.6 + Math.abs(py - 0.5) * 7) * 0.08;
-
-  return chevron + flutter;
+  return offset;
 }
 
 function fieldAngle(x, y, t) {
   const nx = (x / SIZE - 0.5) * value("waveScale");
   const ny = (y / SIZE - 0.5) * value("waveScale");
   const mode = controls.pattern.value;
-
-  if (mode === "arrows") {
-    return arrowAngle(x, y, t);
-  }
 
   if (mode === "radial") {
     return radialAngle(nx, ny, t);
@@ -317,22 +301,52 @@ function fieldAngle(x, y, t) {
   return flowAngle(nx, ny, t);
 }
 
-function arrowSegmentStyle(x, y, t, baseLength, baseLineWidth) {
-  const px = x / SIZE;
-  const py = y / SIZE;
+function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidth) {
   const tipX = arrowTipX(t);
-  const distToTip = Math.hypot((px - tipX) * 1.45, (py - 0.5) * 1.9);
-  const behindDistance = tipX - px;
-  const headGlow = clamp(1 - distToTip / 0.42, 0, 1);
-  const trailingWake = behindDistance >= 0 ? clamp(1 - behindDistance / 0.86, 0, 1) : 0;
-  const centerBand = clamp(1 - Math.abs(py - 0.5) / 0.48, 0, 1);
-  const emphasis = clamp(headGlow * 0.82 + trailingWake * centerBand * 0.38, 0, 1);
+  const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
+  const wakeLength = 780 + value("waveScale") * 70;
+  const halfHeight = 520;
+  const segments = [];
 
-  return {
-    length: baseLength * (0.72 + emphasis * 0.48),
-    lineWidth: baseLineWidth * (0.48 + emphasis * 0.9),
-    opacity: 0.36 + emphasis * 0.64,
-  };
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < columns; col += 1) {
+      const x = margin + col * gap;
+      const y = margin + row * gap;
+      const behind = tipX - x;
+      const verticalDistance = Math.abs(y - centerY);
+      const wake = clamp(1 - behind / wakeLength, 0, 1);
+      const insideWake = behind >= -80 && behind <= wakeLength;
+      const insideArrow = insideWake && verticalDistance < halfHeight * (0.22 + wake * 0.78);
+      const shell = Math.abs(verticalDistance - halfHeight * wake) / halfHeight;
+      const chevronStrength = insideArrow ? clamp(1 - shell * 1.8, 0.22, 1) : 0;
+      const verticalGate = x > tipX + 30 ? clamp((x - tipX) / 280, 0, 1) : 0;
+      const dx = Math.max(90, tipX - x);
+      const dy = centerY - y;
+      const chevronAngle = Math.atan2(dy, dx);
+      const restingAngle = Math.PI / 2;
+      const angle = mixAngles(restingAngle, chevronAngle, chevronStrength);
+      const head = clamp(1 - Math.hypot((x - tipX) / 360, (y - centerY) / 360), 0, 1);
+      const emphasis = clamp(chevronStrength * 0.64 + head * 0.58, 0, 1);
+      const length = dashLength * (0.56 + emphasis * 0.68 + verticalGate * 0.12);
+      const lineWidth = baseLineWidth * (0.42 + emphasis * 1.08);
+      const opacity = 0.22 + emphasis * 0.78;
+      const half = length / 2;
+      const xDrift = Math.sin(row * 0.8 + t * 1.8) * 3;
+      const dxLine = Math.cos(angle) * half;
+      const dyLine = Math.sin(angle) * half;
+
+      segments.push({
+        lineWidth,
+        opacity,
+        x1: x + xDrift - dxLine,
+        y1: y - dyLine,
+        x2: x + xDrift + dxLine,
+        y2: y + dyLine,
+      });
+    }
+  }
+
+  return { lineWidth: baseLineWidth, segments };
 }
 
 function drawBackground() {
@@ -353,16 +367,17 @@ function getDashGeometry(t) {
   const mode = controls.pattern.value;
   const segments = [];
 
+  if (mode === "arrows") {
+    return getArrowGeometry(t, columns, rows, margin, gap, dashLength, lineWidth);
+  }
+
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < columns; col += 1) {
       const x = margin + col * gap;
       const y = margin + row * gap;
       const bend = Math.sin(row * 0.26 + t * 0.38) * 8;
       const angle = fieldAngle(x + bend, y, t);
-      const style =
-        mode === "arrows"
-          ? arrowSegmentStyle(x, y, t, dashLength, lineWidth)
-          : { length: dashLength, lineWidth, opacity: 1 };
+      const style = { length: dashLength, lineWidth, opacity: 1 };
       const half = style.length / 2;
       const dx = Math.cos(angle) * half;
       const dy = Math.sin(angle) * half;
