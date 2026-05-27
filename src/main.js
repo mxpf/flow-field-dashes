@@ -311,9 +311,8 @@ function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWid
   const baseTipX = arrowTipX(t);
   const tipXs = [baseTipX - travel, baseTipX, baseTipX + travel];
   const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
-  const armLength = 940 + value("waveScale") * 60;
-  const armSlope = 0.54 + value("fieldPull") * 0.08;
-  const armSoftness = gap * 1.34;
+  const wakeLength = 900 + value("waveScale") * 80;
+  const wakeHeight = 520 + value("fieldPull") * 92;
   const restAngle = Math.PI / 2;
   const segments = [];
 
@@ -326,30 +325,24 @@ function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWid
 
       for (const tipX of tipXs) {
         const behind = tipX - x;
-        const frontBlend = smoothstep(-120, 90, behind);
-        const tailBlend = 1 - smoothstep(armLength * 0.86, armLength, behind);
-        const pathBlend = frontBlend * tailBlend;
+        const progress = clamp(behind / wakeLength, 0, 1);
+        const frontBlend = smoothstep(-110, 180, behind);
+        const tailBlend = 1 - smoothstep(wakeLength * 0.84, wakeLength, behind);
+        const wakeWidth = 72 + wakeHeight * Math.pow(progress, 0.78);
+        const verticalDistance = Math.abs(y - centerY);
+        const shapeBlend = 1 - smoothstep(wakeWidth, wakeWidth + 210, verticalDistance);
+        const candidateInfluence = frontBlend * tailBlend * shapeBlend;
 
-        if (pathBlend <= 0) {
+        if (candidateInfluence <= 0) {
           continue;
         }
 
-        const upperArmY = centerY - behind * armSlope;
-        const lowerArmY = centerY + behind * armSlope;
-        const upperDistance = Math.abs(y - upperArmY);
-        const lowerDistance = Math.abs(y - lowerArmY);
-        const upperBlend = 1 - smoothstep(0, armSoftness, upperDistance);
-        const lowerBlend = 1 - smoothstep(0, armSoftness, lowerDistance);
-        const armBlend = Math.max(upperBlend, lowerBlend);
-        const candidateInfluence = pathBlend * armBlend;
-
         if (candidateInfluence > influence) {
-          const isUpperArm = upperBlend >= lowerBlend;
+          const dx = Math.max(95, behind);
+          const dy = centerY - y;
 
           influence = candidateInfluence;
-          targetAngle = isUpperArm
-            ? Math.atan2(armSlope, 1)
-            : Math.atan2(-armSlope, 1);
+          targetAngle = Math.atan2(dy, dx);
         }
       }
 
