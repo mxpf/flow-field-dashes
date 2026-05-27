@@ -311,8 +311,9 @@ function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWid
   const baseTipX = arrowTipX(t);
   const tipXs = [baseTipX - travel, baseTipX, baseTipX + travel];
   const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
-  const wakeLength = 900 + value("waveScale") * 80;
-  const wakeHeight = 520 + value("fieldPull") * 92;
+  const armLength = 900 + value("waveScale") * 80;
+  const armSpread = 500 + value("fieldPull") * 86;
+  const ridgeWidth = gap * (1.12 + value("fieldPull") * 0.12);
   const restAngle = Math.PI / 2;
   const segments = [];
 
@@ -325,13 +326,16 @@ function getArrowGeometry(t, columns, rows, margin, gap, dashLength, baseLineWid
 
       for (const tipX of tipXs) {
         const behind = tipX - x;
-        const progress = clamp(behind / wakeLength, 0, 1);
-        const frontBlend = smoothstep(-110, 180, behind);
-        const tailBlend = 1 - smoothstep(wakeLength * 0.84, wakeLength, behind);
-        const wakeWidth = 72 + wakeHeight * Math.pow(progress, 0.78);
-        const verticalDistance = Math.abs(y - centerY);
-        const shapeBlend = 1 - smoothstep(wakeWidth, wakeWidth + 210, verticalDistance);
-        const candidateInfluence = frontBlend * tailBlend * shapeBlend;
+        const progress = clamp(behind / armLength, 0, 1);
+        const frontBlend = smoothstep(-90, 150, behind);
+        const tailBlend = 1 - smoothstep(armLength * 0.82, armLength, behind);
+        const spread = armSpread * Math.pow(progress, 0.82);
+        const upperArmY = centerY - spread;
+        const lowerArmY = centerY + spread;
+        const upperBlend = 1 - smoothstep(0, ridgeWidth, Math.abs(y - upperArmY));
+        const lowerBlend = 1 - smoothstep(0, ridgeWidth, Math.abs(y - lowerArmY));
+        const ridgeBlend = Math.max(upperBlend, lowerBlend);
+        const candidateInfluence = frontBlend * tailBlend * ridgeBlend;
 
         if (candidateInfluence <= 0) {
           continue;
