@@ -310,12 +310,13 @@ function fieldAngle(x, y, t) {
 }
 
 function getWakeGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidth) {
-  const wakeLength = 920 + value("waveScale") * 110;
+  const wakeLength = 980 + value("waveScale") * 120;
   const travel = SIZE + wakeLength + 360;
   const baseBoatX = boatXPosition(t, wakeLength);
   const boatXs = [baseBoatX - travel, baseBoatX, baseBoatX + travel];
   const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
-  const maxWakeWidth = 500 + value("fieldPull") * 95;
+  const maxWakeWidth = 500 + value("fieldPull") * 88;
+  const ridgeWidth = gap * (1.6 + value("fieldPull") * 0.18);
   const restAngle = Math.PI / 2;
   const segments = [];
 
@@ -329,12 +330,21 @@ function getWakeGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidt
       for (const boatX of boatXs) {
         const behind = boatX - x;
         const progress = clamp(behind / wakeLength, 0, 1);
-        const frontBlend = smoothstep(-80, 180, behind);
-        const tailBlend = 1 - smoothstep(wakeLength * 0.78, wakeLength, behind);
-        const wakeWidth = 58 + maxWakeWidth * Math.pow(progress, 0.72);
+        const frontBlend = smoothstep(-70, 135, behind);
+        const tailBlend = 1 - smoothstep(0.82, 1, progress);
         const yFromCenter = y - centerY;
-        const wakeBlend = 1 - smoothstep(wakeWidth, wakeWidth + 220, Math.abs(yFromCenter));
-        const candidateInfluence = frontBlend * tailBlend * wakeBlend;
+        const verticalDistance = Math.abs(yFromCenter);
+        const recoveryRadius = maxWakeWidth * Math.pow(progress, 0.78);
+        const recoveryBand = 1 - smoothstep(
+          ridgeWidth,
+          ridgeWidth + 145,
+          Math.abs(verticalDistance - recoveryRadius),
+        );
+        const centerRelease = smoothstep(gap * 0.55, gap * 2.2, recoveryRadius);
+        const centerBlend =
+          (1 - centerRelease) *
+          (1 - smoothstep(gap * 1.2, gap * 3.8, verticalDistance));
+        const candidateInfluence = frontBlend * tailBlend * Math.max(recoveryBand, centerBlend);
 
         if (candidateInfluence <= 0) {
           continue;
@@ -342,8 +352,8 @@ function getWakeGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidt
 
         if (candidateInfluence > influence) {
           const dx = Math.max(95, behind);
-          const flowCurl = Math.sin(progress * Math.PI) * yFromCenter * 0.18;
-          const dy = centerY - y + flowCurl;
+          const recoveryCurl = Math.sin(progress * Math.PI) * yFromCenter * 0.11;
+          const dy = centerY - y + recoveryCurl;
 
           influence = candidateInfluence;
           targetAngle = Math.atan2(dy, dx);
