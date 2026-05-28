@@ -279,8 +279,11 @@ function vortexAngle(nx, ny, t) {
   return orbit + inwardPull * value("fieldPull") + wobble;
 }
 
-function movingUnitX(t, rate, seedScale = 0.012) {
-  return ((t * rate + state.seed * seedScale) % 1.35) - 0.18;
+function movingUnitFronts(t, rate, seedScale = 0.012) {
+  const span = 1.35;
+  const base = ((t * rate + state.seed * seedScale) % span) - 0.18;
+
+  return [base - span, base, base + span];
 }
 
 function boatXPosition(t, wakeLength) {
@@ -292,34 +295,51 @@ function boatXPosition(t, wakeLength) {
 function slipstreamAngle(x, y, t) {
   const px = x / SIZE;
   const py = y / SIZE - 0.5;
-  const frontX = movingUnitX(t, 0.22);
-  const behind = frontX - px;
-  const frontBlend = smoothstep(-0.08, 0.08, behind);
-  const tailBlend = 1 - smoothstep(0.62, 1.02, behind);
-  const lane = Math.sin(py * 15 + behind * 9 + t * 1.4);
-  const centerPull = 1 - smoothstep(0.02, 0.54, Math.abs(py));
-  const influence = frontBlend * tailBlend * (0.44 + centerPull * 0.56);
-  const target = py * 0.82 + lane * 0.14;
+  let influence = 0;
+  let target = Math.PI / 2;
 
-  return mixAngles(Math.PI / 2, target, influence);
+  for (const frontX of movingUnitFronts(t, 0.22)) {
+    const behind = frontX - px;
+    const frontBlend = smoothstep(-0.08, 0.08, behind);
+    const tailBlend = 1 - smoothstep(0.62, 1.02, behind);
+    const lane = Math.sin(py * 15 + behind * 9 + t * 1.4);
+    const centerPull = 1 - smoothstep(0.02, 0.54, Math.abs(py));
+    const candidateInfluence = frontBlend * tailBlend * (0.44 + centerPull * 0.56);
+
+    if (candidateInfluence > influence) {
+      influence = candidateInfluence;
+      target = py * 0.82 + lane * 0.14;
+    }
+  }
+
+  return mixAngles(Math.PI / 2, target, clamp(influence, 0, 1));
 }
 
 function bowWaveAngle(x, y, t) {
   const px = x / SIZE;
   const py = y / SIZE - 0.5;
-  const sourceX = movingUnitX(t, 0.17);
-  const dx = px - sourceX;
-  const dy = py * 1.08;
-  const distance = Math.hypot(dx * 1.28, dy);
-  const shell = 0.16 + Math.sin(t * 0.42 + state.seed) * 0.015;
-  const shellBlend = 1 - smoothstep(0.04, 0.26, Math.abs(distance - shell));
-  const wakeBlend =
-    smoothstep(-0.04, 0.16, sourceX - px) *
-    (1 - smoothstep(0.5, 1.05, sourceX - px));
-  const influence = clamp(shellBlend * 0.75 + wakeBlend * 0.42, 0, 1);
-  const tangent = Math.atan2(dy, dx) + Math.PI / 2;
-  const wakeCurl = Math.atan2(-py * 0.7, Math.max(0.09, sourceX - px));
-  const target = mixAngles(tangent, wakeCurl, wakeBlend * 0.45);
+  let influence = 0;
+  let target = Math.PI / 2;
+
+  for (const sourceX of movingUnitFronts(t, 0.17)) {
+    const dx = px - sourceX;
+    const dy = py * 1.08;
+    const distance = Math.hypot(dx * 1.28, dy);
+    const shell = 0.16 + Math.sin(t * 0.42 + state.seed) * 0.015;
+    const shellBlend = 1 - smoothstep(0.04, 0.26, Math.abs(distance - shell));
+    const wakeBlend =
+      smoothstep(-0.04, 0.16, sourceX - px) *
+      (1 - smoothstep(0.5, 1.05, sourceX - px));
+    const candidateInfluence = clamp(shellBlend * 0.75 + wakeBlend * 0.42, 0, 1);
+
+    if (candidateInfluence > influence) {
+      const tangent = Math.atan2(dy, dx) + Math.PI / 2;
+      const wakeCurl = Math.atan2(-py * 0.7, Math.max(0.09, sourceX - px));
+
+      influence = candidateInfluence;
+      target = mixAngles(tangent, wakeCurl, wakeBlend * 0.45);
+    }
+  }
 
   return mixAngles(Math.PI / 2, target, influence);
 }
@@ -327,17 +347,20 @@ function bowWaveAngle(x, y, t) {
 function vanishingPushAngle(x, y, t) {
   const px = x / SIZE;
   const py = y / SIZE - 0.5;
-  const frontX = movingUnitX(t, 0.19);
-  const behind = frontX - px;
   const vpX = 1.34 + Math.sin(t * 0.3 + state.seed) * 0.04;
   const vpY = 0.5 + Math.sin(t * 0.44 + state.seed * 0.3) * 0.08;
   const target = Math.atan2(vpY - y / SIZE, vpX - px);
-  const frontBlend = smoothstep(-0.16, 0.12, behind);
-  const tailBlend = 1 - smoothstep(0.72, 1.1, behind);
-  const banding = 0.72 + Math.sin((px - t * 0.34) * 16 + py * 5) * 0.18;
-  const influence = clamp(frontBlend * tailBlend * banding, 0, 1);
+  let influence = 0;
 
-  return mixAngles(Math.PI / 2, target, influence);
+  for (const frontX of movingUnitFronts(t, 0.19)) {
+    const behind = frontX - px;
+    const frontBlend = smoothstep(-0.16, 0.12, behind);
+    const tailBlend = 1 - smoothstep(0.72, 1.1, behind);
+    const banding = 0.72 + Math.sin((px - t * 0.34) * 16 + py * 5) * 0.18;
+    influence = Math.max(influence, frontBlend * tailBlend * banding);
+  }
+
+  return mixAngles(Math.PI / 2, target, clamp(influence, 0, 1));
 }
 
 function fieldAngle(x, y, t) {
