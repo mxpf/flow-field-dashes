@@ -316,7 +316,7 @@ function getWakeGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidt
   const boatXs = [baseBoatX - travel, baseBoatX, baseBoatX + travel];
   const centerY = SIZE / 2 + Math.sin(t * 0.72 + state.seed) * 18;
   const maxWakeWidth = 500 + value("fieldPull") * 88;
-  const ridgeWidth = gap * (1.6 + value("fieldPull") * 0.18);
+  const ridgeWidth = gap * (1.25 + value("fieldPull") * 0.14);
   const restAngle = Math.PI / 2;
   const segments = [];
 
@@ -330,20 +330,21 @@ function getWakeGeometry(t, columns, rows, margin, gap, dashLength, baseLineWidt
       for (const boatX of boatXs) {
         const behind = boatX - x;
         const progress = clamp(behind / wakeLength, 0, 1);
-        const frontBlend = smoothstep(-70, 135, behind);
+        const frontBlend = smoothstep(-42, 82, behind);
         const tailBlend = 1 - smoothstep(0.82, 1, progress);
         const yFromCenter = y - centerY;
         const verticalDistance = Math.abs(yFromCenter);
-        const recoveryRadius = maxWakeWidth * Math.pow(progress, 0.78);
+        const pointedProgress = Math.max(0, progress - 0.035) / 0.965;
+        const recoveryRadius = maxWakeWidth * Math.pow(pointedProgress, 1.08);
         const recoveryBand = 1 - smoothstep(
           ridgeWidth,
-          ridgeWidth + 145,
+          ridgeWidth + 108,
           Math.abs(verticalDistance - recoveryRadius),
         );
-        const centerRelease = smoothstep(gap * 0.55, gap * 2.2, recoveryRadius);
+        const centerRelease = smoothstep(gap * 0.22, gap * 1.22, recoveryRadius);
         const centerBlend =
           (1 - centerRelease) *
-          (1 - smoothstep(gap * 1.2, gap * 3.8, verticalDistance));
+          (1 - smoothstep(gap * 0.48, gap * 1.35, verticalDistance));
         const candidateInfluence = frontBlend * tailBlend * Math.max(recoveryBand, centerBlend);
 
         if (candidateInfluence <= 0) {
